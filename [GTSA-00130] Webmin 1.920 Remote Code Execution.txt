@@ -8,7 +8,7 @@
                       GulfTech Research and Development                                                                 
 
 ###########################################################################
-#                  Webmin <= 1.920 Remote Code Execution                  #            
+#                  Webmin <= 1.930 Remote Code Execution                  #            
 ###########################################################################
  
 
