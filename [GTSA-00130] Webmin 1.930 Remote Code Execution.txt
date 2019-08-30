@@ -1,0 +1,236 @@
+###########################################################################
+                     ______      ____________          __  
+                    / ____/_  __/ / __/_  __/__  _____/ /_ 
+                   / / __/ / / / / /_  / / / _ \/ ___/ __ \
+                  / /_/ / /_/ / / __/ / / /  __/ /__/ / / /         
+                  \____/\__,_/_/_/   /_/  \___/\___/_/ /_/ 
+                                                                
+                      GulfTech Research and Development                                                                 
+
+###########################################################################
+#                  Webmin <= 1.920 Remote Code Execution                  #            
+###########################################################################
+ 
+
+Released Date: 2019-08-31
+Last Modified: 2019-08-31
+ Company Info: Webmin
+ Version Info: 
+              Vulnerable
+               Webmin < 1.930
+              Not Vulnerable
+               Webmin < 1.440
+ 
+
+--[ Table of contents
+
+00 - Introduction
+    00.1 Background
+
+01 - Remote Code Execution
+    01.1 - Vulnerable code analysis
+    01.2 - Remote exploitation
+
+02 - Credit
+
+03 - Proof of concept
+
+04 - Solution
+
+05 - Contact information
+
+06 - References
+
+
+--[ 00 - Introduction
+
+The purpose of this article is to detail the code execution vulnerability 
+that I found in the Webmin software. This vulnerability was independently
+discovered by both myself and calypt.com[1] at the same time while unaware
+of one anothers work. However, the issue was not sufficiently fixed until
+the following commit made a few days ago. This vulnerability has been given
+the CVE id CVE-2019-15642
+
+https://github.com/webmin/webmin/commit/fd3b2efa3de0013755fea5a7cea39cafa0118a70
+
+
+--[ 00.1 - Background
+
+Webmin is a web-based interface for system administration for Unix.
+
+
+--[ 01 - Remote code execution vulnerability
+
+Webmin is vulnerable due to a remote code execution vulnerability that 
+allows for an attacker to execute arbitrary Perl code with privileges of 
+the server miniserv.pl which runs as root.
+
+--[ 01.1 - Vulnerable code analysis
+
+The problematic code lies within the rpc.cgi file. This file is typically
+used for Webmin servers to talk to one another and is expected to be called
+by an authorized source. So, there is an ACL check to make sure that not
+just anyone can call this file. Unfortunately, the rpc.cgi file makes these
+ACL checks AFTER a call to an sensitive internal function is called with 
+user supplied input. Let's have a look below at the offending code from the 
+rpc.cgi file in question:
+
+#!/usr/local/bin/perl
+# rpc.cgi
+# Handles remote_foreign_require and remote_foreign_call requests from
+# other webmin servers. State is preserved by starting a process for each
+# session that listens for requests on a named pipe (and dies after a few
+# seconds of inactivity)
+# access{'rpc'}  0=not allowed 1=allowed 2=allowed if root or admin
+
+BEGIN { push(@INC, "."); };
+use WebminCore;
+use POSIX;
+
+&init_config();
+if ($ENV{'REQUEST_METHOD'} eq 'POST') {
+	local $got;
+	local $left = $ENV{'CONTENT_LENGTH'} - length($rawarg);
+	while($left > 0) {
+		read(STDIN, $got, $left) > 0 || last;
+		$rawarg .= $got;
+		$left = $ENV{'CONTENT_LENGTH'} - length($rawarg);
+		}
+	}
+else {
+	$rawarg = $ENV{'QUERY_STRING'};
+	}
+$arg = &unserialise_variable($rawarg);
+$| = 1;
+print "Content-type: text/plain\n\n";
+
+# Can this user make remote calls?
+%access = &get_module_acl();
+if ($access{'rpc'} == 0 || $access{'rpc'} == 2 &&
+    $base_remote_user ne 'admin' && $base_remote_user ne 'root' &&
+    $base_remote_user ne 'sysadm') {
+	print &serialise_variable( { 'status' => 0 } );
+	exit;
+	}
+
+As we can see from the above code, ACL checks are made. But unfortunately, 
+they are not executed before a call to the function "unserialise_variable" 
+is made with user supplied data which allows arbitrary Perl code to be 
+executed. The function called "unserialise_variable" which I have been 
+talking about is located within the web-lib-funcs.pl can be seen below.
+
+sub unserialise_variable
+{
+my @v = split(/,/, $_[0]);
+my $rv;
+if ($v[0] eq 'VAL') {
+	@v = split(/,/, $_[0], -1);
+	$rv = &un_urlize($v[1]);
+	}
+elsif ($v[0] eq 'SCALAR') {
+	local $r = &un_urlize($v[1]);
+	$rv = \$r;
+	}
+elsif ($v[0] eq 'ARRAY') {
+	$rv = [ ];
+	for(my $i=1; $i<@v; $i++) {
+		push(@$rv, &unserialise_variable(&un_urlize($v[$i])));
+		}
+	}
+elsif ($v[0] eq 'HASH') {
+	$rv = { };
+	for(my $i=1; $i<@v; $i+=2) {
+		$rv->{&unserialise_variable(&un_urlize($v[$i]))} =
+			&unserialise_variable(&un_urlize($v[$i+1]));
+		}
+	}
+elsif ($v[0] eq 'REF') {
+	local $r = &unserialise_variable($v[1]);
+	$rv = \$r;
+	}
+elsif ($v[0] eq 'UNDEF') {
+	$rv = undef;
+	}
+elsif ($v[0] =~ /^OBJECT\s+(.*)$/) {
+	# An object hash that we have to re-bless
+	my $cls = $1;
+	$rv = { };
+	for(my $i=1; $i<@v; $i+=2) {
+		$rv->{&unserialise_variable(&un_urlize($v[$i]))} =
+			&unserialise_variable(&un_urlize($v[$i+1]));
+		}
+	eval "use $cls";
+	bless $rv, $cls;
+	}
+return $rv;
+}
+
+As we can see in the above code there is call to the "eval" function which 
+can lead to a fairly straight forward arbitrary code execution scenario.
+This funtionality was first introduced in Webmin version 1.440 in January 
+2009 over ten years ago and is expected to be run via an authenticated RPC 
+request. In that context the code is likely working as intended, but if a 
+lower level user gains the ability to access this function then they gain 
+the ability to execute any Perl code of their choosing as root.
+
+--[ 01.2 - Remote exploitation
+
+The way that I ended up exploiting this issue is via rpc.cgi as here the 
+"unserialise_variable" function is called before RPC permissions are 
+checked. In order to exploit this bug via rpc.cgi a valid session id with 
+miniserv.pl is required by the attacker. Any session will do. It does NOT 
+have to be the session id of a privileged user or root. That being said 
+executing arbitrary Perl code is as simple as sending a request to rpc.cgi 
+like the POST request below.
+
+OBJECT CGI;`id;uname -a`
+
+It should also be noted that this bug can be exploited via XSRF if the
+targeted Webmin server has referer checking turned off. By default Webmin
+is set to check referer headers.
+
+NOTE: This bug can also be used to cause a denial of service condition by 
+sending for example large nested arrays to be unseralized. 
+
+
+--[ 02 - Credit
+
+James Bercegay
+GulfTech Research and Development
+
+
+--[ 03 - Proof of concept
+
+We strive to do our part to contribute to the security community.
+Metasploit modules for issues outlined in this paper can be found online.
+
+
+--[ 04 - Solution
+
+The object unserialization code execution was fixed in the 1.930 release. I 
+am not sure why it was not addressed as a security issue, but my guess is 
+because that bit of code is relly only ran as root so it is maybe then 
+considered expected behavior by the developers.
+
+https://github.com/webmin/webmin/commit/df8a43fb4bdc9c858874f72773bcba597ae9432c
+
+The rpc.cgi issue was fixed with the following commit:
+
+https://github.com/webmin/webmin/commit/fd3b2efa3de0013755fea5a7cea39cafa0118a70
+
+Users should upgrade to the lastest version of Webmin.
+
+
+--[ 05 - Contact information
+
+Web
+https://gulftech.org/
+
+Mail
+security@gulftech.org
+
+
+--[ 06 - References
+[1] https://www.calypt.com/blog/index.php/authenticated-rce-on-webmin/
+
+Copyright 2019 GulfTech Research and Development. All rights reserved.
