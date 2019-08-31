@@ -49,7 +49,7 @@ that I found in the Webmin software. This vulnerability was independently
 discovered by both myself and calypt.com[1] at the same time while unaware
 of one anothers work. However, the issue was not sufficiently fixed until
 the following commit made a few days ago.[2] This vulnerability has been 
-given the CVE id CVE-2019-15642
+given the CVE id CVE-2019-15642.
 
 
 --[ 00.1 - Background
