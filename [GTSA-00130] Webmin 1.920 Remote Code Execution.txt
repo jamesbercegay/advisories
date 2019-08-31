@@ -207,7 +207,7 @@ Metasploit modules for issues outlined in this paper can be found online.
 
 The object unserialization code execution was fixed in the 1.930 release. I 
 am not sure why it was not addressed as a security issue, but my guess is 
-because that bit of code is relly only ran as root so it is maybe then 
+because that bit of code is really only ran as root so it is maybe then 
 considered expected behavior by the developers.
 
 https://github.com/webmin/webmin/commit/df8a43fb4bdc9c858874f72773bcba597ae9432c
