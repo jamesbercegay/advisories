@@ -216,8 +216,6 @@ The rpc.cgi issue was fixed with the following commit:
 
 https://github.com/webmin/webmin/commit/fd3b2efa3de0013755fea5a7cea39cafa0118a70
 
-Users should upgrade to the lastest version of Webmin.
-
 
 --[ 05 - Contact information
 
