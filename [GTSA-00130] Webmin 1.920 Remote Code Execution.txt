@@ -48,10 +48,8 @@ The purpose of this article is to detail the code execution vulnerability
 that I found in the Webmin software. This vulnerability was independently
 discovered by both myself and calypt.com[1] at the same time while unaware
 of one anothers work. However, the issue was not sufficiently fixed until
-the following commit made a few days ago. This vulnerability has been given
-the CVE id CVE-2019-15642
-
-https://github.com/webmin/webmin/commit/fd3b2efa3de0013755fea5a7cea39cafa0118a70
+the following commit made a few days ago.[2] This vulnerability has been 
+given the CVE id CVE-2019-15642
 
 
 --[ 00.1 - Background
@@ -232,5 +230,6 @@ security@gulftech.org
 
 --[ 06 - References
 [1] https://www.calypt.com/blog/index.php/authenticated-rce-on-webmin/
+[2] https://github.com/webmin/webmin/commit/fd3b2efa3de0013755fea5a7cea39cafa0118a70
 
 Copyright 2019 GulfTech Research and Development. All rights reserved.
