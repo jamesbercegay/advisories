@@ -100,7 +100,7 @@ administrator.
 7] Redirect user to the index page
 
 Exploitation of this issue is rather straight forward, but because 
-variables in PHP can't have dots and spaces in their names as those are 
+variables in PHP can't have dots and spaces in their names so those are 
 converted to underscores by the call to "parse_str" in the vulnerable code
 shown earlier. An attacker must adhere to these limitations whenever
 constructing XSS payloads. 
@@ -131,8 +131,8 @@ if ( isset($_POST['set_permalink']) and $_POST['cat_id']>0 )
 Both the "set_cat_permalink" and "delete_cat_permalink" functions rely on the 
 "cat_id" variable already being sanitized. However, the only sanity checks that
 take place with "cat_id" are to make sure it is greater than zero. This is not
-sufficent as PHP type juggling will cast a string that starts with a number to a
-valid integer for the comparison, yet the original tainted value will remain.
+sufficient as PHP type juggling will cast a string that starts with a number to 
+a valid integer for the comparison, yet the original tainted value will remain.
 This allows an attacker to pass a string that starts with an integer in order to
 achieve SQL Injection.
 
